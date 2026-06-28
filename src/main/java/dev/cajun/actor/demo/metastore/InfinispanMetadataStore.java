@@ -114,14 +114,14 @@ public class InfinispanMetadataStore implements MetadataStore {
 
         activeWatchers.put(watchId, listener);
 
-        return cache.addListenerAsync(listener).thenApply(v -> watchId);
+        return cache.addListenerAsync(listener).thenApply(v -> watchId).toCompletableFuture();
     }
 
     @Override
     public CompletableFuture<Void> unwatch(long watchId) {
         Object listener = activeWatchers.remove(watchId);
         if (listener != null) {
-            return cache.removeListenerAsync(listener);
+            return cache.removeListenerAsync(listener).toCompletableFuture();
         }
         return CompletableFuture.completedFuture(null);
     }

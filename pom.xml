@@ -34,7 +34,11 @@
             <artifactId>infinispan-core</artifactId>
             <version>${infinispan-core.version}</version>
         </dependency>
-
+        <dependency>
+            <groupId>org.infinispan</groupId>
+            <artifactId>infinispan-commons</artifactId>
+            <version>${infinispan-core.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
