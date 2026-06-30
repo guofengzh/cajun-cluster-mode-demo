@@ -18,7 +18,7 @@ App1 will display the message sent by App2.
 
 ## What we did
 
-1. To implement our own metadata store, we use Infinispan to implement MetadataStore.
+1. We implemented our own MetadataStore using Infinispan.
 2. We use Infinispan's cluster listener to learn about changes in network topology and node status.
 
 ## Why do we care about Cajun?
