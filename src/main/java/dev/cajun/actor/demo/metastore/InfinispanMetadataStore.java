@@ -183,14 +183,13 @@ public class InfinispanMetadataStore implements MetadataStore {
 
         @CacheEntryRemoved
         public void onRemoved(CacheEntryRemovedEvent<String, String> event) {
+            // Trigger only on the post-event (after the removal is complete)
             if (event.isPre()) return;
             if (targetKey.equals(event.getKey())) {
                 watcher.onDelete(event.getKey());
+            } if (LEADER_KEY.equals(event.getKey())) {
+                logger.info("The leader is being elected.");
             }
-        }
-
-        @CacheEntryExpired
-        public void onExpiration(CacheEntryExpiredEvent<String, String> event) {
         }
     }
 }

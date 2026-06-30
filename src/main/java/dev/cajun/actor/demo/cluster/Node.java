@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 public class Node {
@@ -117,15 +118,17 @@ public class Node {
             if (event.getOldMembers().size() > event.getNewMembers().size()) {
                 logger.debug("A node has left the cluster.");
 
-                // Find nodes that left
-                event.getOldMembers().stream()
-                        .filter(member -> !event.getNewMembers().contains(member))
-                        .forEach(departedNode -> {
-                            logger.info("Node departed: {}", departedNode);
-                            Cache<String, String> cache = event.getCacheManager().getCache(InfinispanMetadataStore.CACHE_NAME);
-                            // if this node is the leader, remove it from the cache
-                            cache.removeAsync(InfinispanMetadataStore.LEADER_KEY, departedNode);
-                        });
+                CompletableFuture.runAsync(() -> {
+                    // Find nodes that left
+                    event.getOldMembers().stream()
+                            .filter(member -> !event.getNewMembers().contains(member))
+                            .forEach(departedNode -> {
+                                String nodeId = departedNode.toString();
+                                Cache<String, String> cache = event.getCacheManager().getCache(InfinispanMetadataStore.CACHE_NAME);
+                                // if this node is the leader, remove it from the cache
+                                cache.removeAsync(InfinispanMetadataStore.LEADER_KEY, nodeId);
+                            });
+                });
             }
         }
     }
@@ -141,25 +144,27 @@ public class Node {
             this.currentNode = currentNode;
         }
 
+        private void setupMessagingTarget(String key, String value) {
+            String currentNodeKey = MESSAGING_PARTNER_ENTRY_KEY_PREFIX + currentNode;
+            if (key.startsWith(MESSAGING_PARTNER_ENTRY_KEY_PREFIX) && !key.equals(currentNodeKey)) {
+                // register partners for messaging
+                String[] hostPort = value.split(":");
+                String nodeId = key.substring(MESSAGING_PARTNER_ENTRY_KEY_PREFIX.length());
+                this.messagingSystem.addNode(nodeId, hostPort[0], Integer.parseInt(hostPort[1]));
+                logger.info("register the partner: event.getNewValue()");
+            }
+        }
+
         @CacheEntryCreated
         public void onCreated(CacheEntryCreatedEvent<String, String> event) {
             if (event.isPre()) return;
-            logger.debug("onCreated, key = " + event.getKey() + " value = " + event.getValue());
+            setupMessagingTarget(event.getKey(), event.getValue());
         }
 
         @CacheEntryModified
         public void onModified(CacheEntryModifiedEvent<String, String> event) {
             if (event.isPre()) return;
-
-            String currentNodeKey = MESSAGING_PARTNER_ENTRY_KEY_PREFIX + currentNode;
-            String key = event.getKey();
-            if (key.startsWith(MESSAGING_PARTNER_ENTRY_KEY_PREFIX) && !key.equals(currentNodeKey)) {
-                // register partners for messaging
-                String[] hostPort = event.getNewValue().split(":");
-                String nodeId = key.substring(MESSAGING_PARTNER_ENTRY_KEY_PREFIX.length());
-                this.messagingSystem.addNode(nodeId, hostPort[0], Integer.parseInt(hostPort[1]));
-                logger.info("register the partner: event.getNewValue()");
-            }
+            setupMessagingTarget(event.getKey(), event.getNewValue());
         }
 
         @CacheEntryRemoved
