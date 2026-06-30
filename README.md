@@ -1,6 +1,6 @@
 ## Introduction
 
-Use [Infinispan](https://github.com/infinispan/infinispan) to manage the joining and leaving of nodes in a [Cajun](https://github.com/CajunSystems/cajun) cluster, in order to manage the target nodes required when the Messaging System sends messages.
+This is a demonstration using a [Cajun](https://github.com/CajunSystems/cajun) cluster. It uses [Infinispan](https://github.com/infinispan/infinispan) to manage the joining and leaving of nodes in the Cajun cluster, thus managing the list of target nodes required when the Cajun messaging system sends messages.
 
 ## Usage 
 
@@ -20,3 +20,9 @@ App1 will display the message sent by App2.
 
 1. To implement our own metadata store, we use Infinispan to implement MetadataStore.
 2. We use Infinispan's cluster listener to learn about changes in network topology and node status.
+
+## Why do we care about Cajun?
+
+The AI agent behaves much like an actor. Cajun is a modern, lightweight agent system (compared to [Apache Pekko](https://github.com/apache/pekko) and Lightbend's [Akka](https://github.com/akka/akka-core)), making it well-suited for developing distributed AI agent systems.
+
+See [Building AI Agents with Actors in Java: A Natural Fit](https://medium.com/@pradeepsamd/building-ai-agents-with-actors-in-java-a-natural-fit-3309cd2ea9a9).
