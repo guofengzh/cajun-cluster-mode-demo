@@ -1,3 +1,0 @@
-#!/bin/bash
-
-exec java -jar target/java-21-maven-project-1.0-SNAPSHOT.jar "$@"
