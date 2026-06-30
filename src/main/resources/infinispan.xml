@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<infinispan
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="urn:infinispan:config:16.0 https://infinispan.org/schemas/infinispan-config-16.0.xsd"
+        xmlns="urn:infinispan:config:16.0">
+      
+      <cache-container default-cache="cajun-store">
+          <transport cluster="cajun-cluster" lock-timeout="60000" stack="udp"/>
+
+          <distributed-cache name="cajun-store">
+            <expiration lifespan="-1"/>
+          </distributed-cache>
+      </cache-container>
+</infinispan>

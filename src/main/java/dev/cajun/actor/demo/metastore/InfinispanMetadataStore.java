@@ -2,23 +2,22 @@ package dev.cajun.actor.demo.metastore;
 
 import com.cajunsystems.cluster.MetadataStore;
 import org.infinispan.Cache;
-import org.infinispan.commons.api.CacheContainerAdmin;
-import org.infinispan.configuration.cache.CacheMode;
-import org.infinispan.configuration.cache.ConfigurationBuilder;
-import org.infinispan.configuration.global.GlobalConfigurationBuilder;
-import org.infinispan.manager.DefaultCacheManager;
+import org.infinispan.manager.EmbeddedCacheManager;
 import org.infinispan.notifications.Listener;
 import org.infinispan.notifications.cachelistener.annotation.CacheEntryCreated;
+import org.infinispan.notifications.cachelistener.annotation.CacheEntryExpired;
 import org.infinispan.notifications.cachelistener.annotation.CacheEntryModified;
 import org.infinispan.notifications.cachelistener.annotation.CacheEntryRemoved;
 import org.infinispan.notifications.cachelistener.event.CacheEntryCreatedEvent;
+import org.infinispan.notifications.cachelistener.event.CacheEntryExpiredEvent;
 import org.infinispan.notifications.cachelistener.event.CacheEntryModifiedEvent;
 import org.infinispan.notifications.cachelistener.event.CacheEntryRemovedEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -30,30 +29,27 @@ import java.util.stream.Collectors;
  */
 public class InfinispanMetadataStore implements MetadataStore {
 
-    private static final String CACHE_NAME = "cajun-metadata-cache";
+    private static final Logger logger = LoggerFactory.getLogger(InfinispanMetadataStore.class);
 
-    private DefaultCacheManager cacheManager;
+    public static final String CACHE_NAME = "cajun-store";
+    public static final String LEADER_KEY = "cajun/leader";
+
+    private final EmbeddedCacheManager cacheManager;
+    private final String nodeId;
     private Cache<String, String> cache;
 
     private final AtomicLong watcherIdGenerator = new AtomicLong(0);
     private final Map<Long, Object> activeWatchers = new ConcurrentHashMap<>();
 
+    public InfinispanMetadataStore(EmbeddedCacheManager cacheManager, String nodeId) {
+        this.cacheManager = cacheManager;
+        this.nodeId = nodeId;
+    }
+
     @Override
     public CompletableFuture<Void> connect() {
         return CompletableFuture.runAsync(() -> {
-            // Configure embedded clustered mode
-            GlobalConfigurationBuilder globalConfig = GlobalConfigurationBuilder.defaultClusteredBuilder();
-            globalConfig.transport().clusterName("cajun-actor-cluster");
-
-            cacheManager = new DefaultCacheManager(globalConfig.build());
-
-            // Define a distributed synchronous cache configuration
-            ConfigurationBuilder cacheConfig = new ConfigurationBuilder();
-            cacheConfig.clustering().cacheMode(CacheMode.DIST_SYNC);
-
-            cache = cacheManager.administration()
-                    .withFlags(CacheContainerAdmin.AdminFlag.VOLATILE)
-                    .getOrCreateCache(CACHE_NAME, cacheConfig.build());
+            this.cache = cacheManager.getCache(CACHE_NAME);
         });
     }
 
@@ -92,15 +88,16 @@ public class InfinispanMetadataStore implements MetadataStore {
 
     @Override
     public CompletableFuture<Optional<Lock>> acquireLock(String lockName, long ttlSeconds) {
-        String lockKey = "lock::" + lockName;
-        String lockOwnerId = UUID.randomUUID().toString();
 
         // Using putIfAbsent with lifespan ensures atomic locking with a strict TTL
-        return cache.putIfAbsentAsync(lockKey, lockOwnerId, ttlSeconds, TimeUnit.SECONDS)
+		// TODO: We have to increase ttlSeconds, because its refresh cycle is the same as the TTL.
+        long extendedTtlSeconds = ttlSeconds + 2;
+
+        return cache.putIfAbsentAsync(lockName, nodeId, extendedTtlSeconds, TimeUnit.SECONDS)
                 .thenApply(existingValue -> {
                     if (existingValue == null) {
                         // Lock successfully acquired
-                        return Optional.of(new InfinispanLock(lockKey, lockOwnerId, ttlSeconds));
+                        return Optional.of(new InfinispanLock(lockName, nodeId, ttlSeconds));
                     }
                     // Lock is already held by someone else
                     return Optional.empty();
@@ -151,8 +148,14 @@ public class InfinispanMetadataStore implements MetadataStore {
         @Override
         public CompletableFuture<Void> refresh() {
             // Atomic replace: only refreshes TTL if we still hold the lock
-            return cache.replaceAsync(lockKey, lockOwnerId, lockOwnerId, ttlSeconds, TimeUnit.SECONDS)
-                    .thenApply(ignore -> null);
+            // TODO: We have to increase ttlSeconds, because its refresh cycle is the same as the TTL.
+            long extendedTtlSeconds = ttlSeconds + 2;
+            return cache.replaceAsync(lockKey, lockOwnerId, lockOwnerId, extendedTtlSeconds, TimeUnit.SECONDS)
+                    .thenApply(replaced -> {
+                        if (!replaced)
+                            throw new RuntimeException("The lock is no longer in my possession.");
+                        return null;
+                    });
         }
     }
 
@@ -160,14 +163,7 @@ public class InfinispanMetadataStore implements MetadataStore {
      * Clustered Listener to watch for distributed key changes.
      */
     @Listener(clustered = true, observation = Listener.Observation.POST)
-    private class KeyEventListener {
-        private final String targetKey;
-        private final KeyWatcher watcher;
-
-        public KeyEventListener(String targetKey, KeyWatcher watcher) {
-            this.targetKey = targetKey;
-            this.watcher = watcher;
-        }
+    private record KeyEventListener(String targetKey, KeyWatcher watcher) {
 
         @CacheEntryCreated
         public void onCreated(CacheEntryCreatedEvent<String, String> event) {
@@ -191,6 +187,10 @@ public class InfinispanMetadataStore implements MetadataStore {
             if (targetKey.equals(event.getKey())) {
                 watcher.onDelete(event.getKey());
             }
+        }
+
+        @CacheEntryExpired
+        public void onExpiration(CacheEntryExpiredEvent<String, String> event) {
         }
     }
 }
