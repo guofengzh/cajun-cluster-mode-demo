@@ -25,4 +25,4 @@ App1 will display the message sent by App2.
 
 The AI agent behaves much like an actor. Cajun is a modern, lightweight agent system (compared to [Apache Pekko](https://github.com/apache/pekko) and Lightbend's [Akka](https://github.com/akka/akka-core)), making it well-suited for developing distributed AI agent systems.
 
-See [Building AI Agents with Actors in Java: A Natural Fit](https://medium.com/@pradeepsamd/building-ai-agents-with-actors-in-java-a-natural-fit-3309cd2ea9a9).
+Please see Pradeep Samuel's article "[Building AI Agents with Actors in Java: A Natural Fit](https://medium.com/@pradeepsamd/building-ai-agents-with-actors-in-java-a-natural-fit-3309cd2ea9a9)".
