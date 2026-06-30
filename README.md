@@ -15,3 +15,8 @@ mvn exec:java -Dexec.mainClass="dev.cajun.actor.demo.App2"
 ```
 
 App1 will display the message sent by App2.
+
+## What we did
+
+1. To implement our own metadata store, we use Infinispan to implement MetadataStore.
+2. We use Infinispan's cluster listener to learn about changes in network topology and node status.
